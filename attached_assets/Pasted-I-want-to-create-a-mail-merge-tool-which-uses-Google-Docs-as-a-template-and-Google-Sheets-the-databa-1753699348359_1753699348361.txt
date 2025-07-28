@@ -1,0 +1,39 @@
+I want to create a mail merge tool which uses Google Docs as a template and Google Sheets the database.
+
+For this I want to split the screen into 80% (left) and 20% (right)
+
+On the left side I will be able to see the editable Google Docs loaded up.
+
+On the right side I will have all the settings.
+
+I want to see 2 dropdown fields, i.e. Setup and Properties.
+
+In the Setup I want to see Add Google Docs and Add Google Sheets
+
+When I click on Add Google Docs, it will load the oauth screen and use the drive.file api access only with the google picker to select the google doc file.
+
+Similarly I want to implement the same process for the Google Sheet as well.
+
+https://developers.google.com/workspace/drive/picker/guides/overview
+
+Here's the link on how to implement the google picker api.
+
+https://developers.google.com/identity/protocols/oauth2
+
+Here's the link for the access token
+
+Can you create me this code, I have all the credentials for the google cloud console for this project such as Client ID, API Key, App ID and the Client Secret etc
+
+Implement the following into the project:
+
+1. Add auth process where I can sign in to the project using supabase google auth provider
+
+2. During the signin I want to initiate the oauth 2.0 which will allow me to authenticate for the drive.file access.
+
+3. Allow me to enter all the credentials into api key including GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_API_KEY, GOOGLE_APP_ID, all of these will go into supabase.
+
+4. Use supabase edge functions for performing mail merge operations using batch.export of google drive api, downloading the pdf files one by one as its processed into the downloads folder.
+
+5. Also store everything related to the user like google_access_token, refresh_token and make sure the refresh_token is used to avoid repeated reauthentications of the google_access_token
+
+6. When the google doc is selected using the picker, make sure to load the document on the left and when the google sheet is added make sure to load all the header rows of the google sheet below in the properties section.
