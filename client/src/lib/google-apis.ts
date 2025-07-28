@@ -113,7 +113,7 @@ export class GoogleAPIs {
 
       const client = window.google.accounts.oauth2.initTokenClient({
         client_id: CLIENT_ID,
-        scope: 'https://www.googleapis.com/auth/drive.file',
+        scope: 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/documents https://www.googleapis.com/auth/spreadsheets.readonly',
         callback: (response: any) => {
           if (response.error) {
             reject(new Error(response.error));
@@ -334,6 +334,160 @@ export class GoogleAPIs {
   async forceReauth(): Promise<string> {
     this.accessToken = null;
     return this.authenticateGoogle();
+  }
+
+  // Get current access token
+  getAccessToken(): string | null {
+    return this.accessToken;
+  }
+
+  // Perform mail merge and return downloadable PDFs
+  async performMailMerge(
+    documentId: string, 
+    spreadsheetId: string, 
+    onProgress: (progress: number) => void
+  ): Promise<{ success: boolean; downloadUrls: Array<{ name: string; url: string }> }> {
+    if (!this.accessToken) {
+      this.accessToken = await this.authenticateGoogle();
+    }
+
+    console.log('Starting mail merge process...');
+    onProgress(5);
+
+    // Get spreadsheet data
+    const sheetData = await this.getSheetData(spreadsheetId, 'A:Z');
+    if (!sheetData.values || sheetData.values.length < 2) {
+      throw new Error('Insufficient data in spreadsheet');
+    }
+
+    const headers = sheetData.values[0];
+    const rows = sheetData.values.slice(1);
+    onProgress(15);
+
+    // Get document content
+    const docResponse = await fetch(
+      `https://docs.googleapis.com/v1/documents/${documentId}?key=${import.meta.env.VITE_GOOGLE_API_KEY}`,
+      {
+        headers: { Authorization: `Bearer ${this.accessToken}` },
+      }
+    );
+
+    if (!docResponse.ok) {
+      throw new Error('Failed to fetch document content');
+    }
+
+    const docData = await docResponse.json();
+    onProgress(25);
+
+    const downloadUrls: Array<{ name: string; url: string }> = [];
+    const totalRows = rows.length;
+
+    // Process each row
+    for (let i = 0; i < totalRows; i++) {
+      const row = rows[i];
+      
+      // Create data object from headers and row values
+      const rowData: Record<string, string> = {};
+      headers.forEach((header: string, index: number) => {
+        rowData[header] = row[index] || '';
+      });
+
+      // Copy the original document
+      const copyResponse = await fetch(
+        `https://www.googleapis.com/drive/v3/files/${documentId}/copy?key=${import.meta.env.VITE_GOOGLE_API_KEY}`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${this.accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            name: `Merged Document ${i + 1} - ${rowData[headers[0]] || 'Document'}`,
+          }),
+        }
+      );
+
+      if (!copyResponse.ok) {
+        console.error(`Failed to copy document for row ${i + 1}`);
+        continue;
+      }
+
+      const copiedDoc = await copyResponse.json();
+
+      // Get document content and replace merge fields
+      let content = this.extractDocumentText(docData);
+      Object.entries(rowData).forEach(([key, value]) => {
+        const regex = new RegExp(`{{${key}}}`, 'g');
+        content = content.replace(regex, value);
+      });
+
+      // Update the copied document with merged content
+      await fetch(
+        `https://docs.googleapis.com/v1/documents/${copiedDoc.id}:batchUpdate?key=${import.meta.env.VITE_GOOGLE_API_KEY}`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${this.accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            requests: [
+              {
+                deleteContentRange: {
+                  range: {
+                    startIndex: 1,
+                    endIndex: -1,
+                  },
+                },
+              },
+              {
+                insertText: {
+                  location: { index: 1 },
+                  text: content,
+                },
+              },
+            ],
+          }),
+        }
+      );
+
+      // Generate PDF export URL with auth token
+      const pdfUrl = `https://docs.google.com/document/d/${copiedDoc.id}/export?format=pdf&access_token=${this.accessToken}`;
+      downloadUrls.push({
+        name: `merged_document_${i + 1}.pdf`,
+        url: pdfUrl,
+      });
+
+      // Update progress
+      const progress = 25 + ((i + 1) / totalRows) * 70;
+      onProgress(Math.round(progress));
+    }
+
+    onProgress(100);
+    console.log('Mail merge completed:', downloadUrls.length, 'documents generated');
+
+    return {
+      success: true,
+      downloadUrls,
+    };
+  }
+
+  private extractDocumentText(docData: any): string {
+    let text = '';
+    
+    if (docData.body && docData.body.content) {
+      for (const element of docData.body.content) {
+        if (element.paragraph && element.paragraph.elements) {
+          for (const textElement of element.paragraph.elements) {
+            if (textElement.textRun && textElement.textRun.content) {
+              text += textElement.textRun.content;
+            }
+          }
+        }
+      }
+    }
+    
+    return text;
   }
 }
 

@@ -175,28 +175,51 @@ export default function Home() {
     setMergeProgress(0);
 
     try {
-      // Simulate progress for now
-      const interval = setInterval(() => {
-        setMergeProgress(prev => {
-          if (prev >= 100) {
-            clearInterval(interval);
-            setIsMerging(false);
-            toast({
-              title: "Merge Completed",
-              description: "All documents have been generated successfully",
-            });
-            return 100;
-          }
-          return prev + 10;
+      const result = await googleAPIs.performMailMerge(
+        selectedDocument.id,
+        selectedSheet.id,
+        (progress: number) => setMergeProgress(progress)
+      );
+
+      if (result.success && result.downloadUrls) {
+        // Download each PDF automatically
+        for (const fileInfo of result.downloadUrls) {
+          await downloadPDF(fileInfo.url, fileInfo.name);
+        }
+
+        toast({
+          title: "Merge Completed",
+          description: `${result.downloadUrls.length} PDF files downloaded to your Downloads folder`,
         });
-      }, 500);
+      }
     } catch (error) {
-      setIsMerging(false);
+      console.error('Merge error:', error);
       toast({
         title: "Merge Failed",
         description: "Failed to complete mail merge operation",
         variant: "destructive",
       });
+    } finally {
+      setIsMerging(false);
+    }
+  };
+
+  const downloadPDF = async (url: string, filename: string) => {
+    try {
+      // Create a temporary link and trigger download
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      link.target = '_blank';
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      // Small delay between downloads to prevent browser blocking
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    } catch (error) {
+      console.error('Download error:', error);
     }
   };
 
