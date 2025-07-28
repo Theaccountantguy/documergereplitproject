@@ -113,7 +113,7 @@ export class GoogleAPIs {
 
       const client = window.google.accounts.oauth2.initTokenClient({
         client_id: CLIENT_ID,
-        scope: 'https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/documents.readonly https://www.googleapis.com/auth/spreadsheets.readonly',
+        scope: 'https://www.googleapis.com/auth/drive.file',
         callback: (response: any) => {
           if (response.error) {
             reject(new Error(response.error));
@@ -233,20 +233,18 @@ export class GoogleAPIs {
     return processedData;
   }
 
-  async getSheetData(spreadsheetId: string, range: string = 'A1:Z1000'): Promise<any> {
+  async getSheetData(spreadsheetId: string, range: string = 'A1:Z1'): Promise<any> {
     if (!this.accessToken) {
       this.accessToken = await this.authenticateGoogle();
     }
 
-    console.log('Fetching sheet:', spreadsheetId, 'range:', range);
-    console.log('Using access token:', this.accessToken?.substring(0, 20) + '...');
+    console.log('Fetching sheet headers:', spreadsheetId, 'range:', range);
 
     const response = await fetch(
-      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}`,
+      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}?key=${import.meta.env.VITE_GOOGLE_API_KEY}`,
       {
         headers: {
           Authorization: `Bearer ${this.accessToken}`,
-          'Content-Type': 'application/json',
         },
       }
     );
@@ -256,11 +254,11 @@ export class GoogleAPIs {
     if (!response.ok) {
       const errorText = await response.text();
       console.error('Sheets API error:', errorText);
-      throw new Error(`Failed to fetch sheet data: ${response.status} - ${errorText}`);
+      throw new Error(`Failed to fetch sheet headers: ${response.status} - ${errorText}`);
     }
 
     const data = await response.json();
-    console.log('Sheet data received:', data);
+    console.log('Sheet headers received:', data);
     return data;
   }
 

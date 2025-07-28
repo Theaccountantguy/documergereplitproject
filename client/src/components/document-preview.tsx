@@ -81,37 +81,26 @@ export function DocumentPreview({ document, onRefresh, onStartMerge, isLoading }
         </div>
       </div>
 
-      <div className="flex-1 p-6 overflow-auto">
-        <div className="max-w-4xl mx-auto bg-white shadow-lg rounded-lg border border-gray-200 min-h-[600px]">
-          <div className="p-6 border-b border-gray-100">
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">{document.title || document.name}</h2>
-            <div className="text-sm text-gray-500 mb-6">
-              Last modified: {new Date().toLocaleDateString()} at {new Date().toLocaleTimeString()}
+      <div className="flex-1 overflow-hidden">
+        <div className="h-full bg-white border border-gray-200">
+          <div className="px-6 py-3 border-b border-gray-100 bg-gray-50">
+            <h2 className="text-lg font-semibold text-gray-900">{document.title || document.name}</h2>
+            <div className="text-xs text-gray-500">
+              Editable Google Document
             </div>
           </div>
 
-          <div className="p-6 space-y-4 text-gray-700 leading-relaxed">
-            {document.content ? (
-              <div dangerouslySetInnerHTML={{ 
-                __html: renderMergeField(document.content) 
-              }} />
+          <div className="h-full">
+            {document.id ? (
+              <iframe
+                src={`https://docs.google.com/document/d/${document.id}/edit?usp=sharing`}
+                className="w-full h-full border-0"
+                title={document.name}
+                sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
+              />
             ) : (
-              <div className="space-y-4">
-                <p>Dear <span className="bg-yellow-100 px-2 py-1 rounded border-l-4 border-yellow-400 font-medium">{'{{firstName}} {{lastName}}'}</span>,</p>
-                
-                <p>We're excited to introduce our new product line specifically designed for companies like <span className="bg-yellow-100 px-2 py-1 rounded border-l-4 border-yellow-400 font-medium">{'{{companyName}}'}</span>.</p>
-                
-                <p>Based on your industry (<span className="bg-yellow-100 px-2 py-1 rounded border-l-4 border-yellow-400 font-medium">{'{{industry}}'}</span>) and company size (<span className="bg-yellow-100 px-2 py-1 rounded border-l-4 border-yellow-400 font-medium">{'{{employeeCount}}'}</span> employees), we believe this solution can help you achieve:</p>
-                
-                <ul className="list-disc list-inside space-y-2 ml-4">
-                  <li>Increased efficiency by up to 40%</li>
-                  <li>Cost reduction of approximately <span className="bg-yellow-100 px-2 py-1 rounded border-l-4 border-yellow-400 font-medium">{'{{estimatedSavings}}'}</span></li>
-                  <li>Streamlined workflows for your <span className="bg-yellow-100 px-2 py-1 rounded border-l-4 border-yellow-400 font-medium">{'{{department}}'}</span> team</li>
-                </ul>
-                
-                <p>We'd love to schedule a personalized demo for you. Please reply to this email or call us at <span className="bg-yellow-100 px-2 py-1 rounded border-l-4 border-yellow-400 font-medium">{'{{phoneNumber}}'}</span>.</p>
-                
-                <p>Best regards,<br />The Sales Team</p>
+              <div className="p-6 text-center text-gray-500 py-20">
+                <p>No document selected or document cannot be displayed</p>
               </div>
             )}
           </div>

@@ -197,7 +197,7 @@ export function SettingsPanel({
               <Checkbox 
                 id="generatePDF" 
                 checked={generatePDF}
-                onCheckedChange={setGeneratePDF}
+                onCheckedChange={(checked) => setGeneratePDF(checked === true)}
               />
               <label htmlFor="generatePDF" className="text-sm text-gray-700">Generate PDF files</label>
             </div>
@@ -206,7 +206,7 @@ export function SettingsPanel({
               <Checkbox 
                 id="downloadZip" 
                 checked={downloadZip}
-                onCheckedChange={setDownloadZip}
+                onCheckedChange={(checked) => setDownloadZip(checked === true)}
               />
               <label htmlFor="downloadZip" className="text-sm text-gray-700">Download as ZIP</label>
             </div>

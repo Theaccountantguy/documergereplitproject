@@ -62,7 +62,7 @@ export default function Home() {
       if (result) {
         console.log('Document selected:', result);
         setSelectedDocument(result);
-        await loadDocumentContent(result.id);
+        // No need to load content since we're using iframe
         toast({
           title: "Document Selected",
           description: `Selected: ${result.name}`,
