@@ -110,5 +110,7 @@ Preferred communication style: Simple, everyday language.
 - **Pre-configured Google API Integration**: Uses environment variables for all Google credentials
 - **Streamlined User Experience**: Users only need to authenticate via Google OAuth
 - **Direct Google Picker Access**: No additional setup required for file selection
+- **Minimal OAuth Permissions**: Reduced to drive.file scope for file-specific access only
+- **Auth Callback Route**: Added /auth/callback for proper OAuth redirect handling
 
 The application is designed to be deployed on platforms that support Node.js with the ability to serve static files and handle environment variables securely.

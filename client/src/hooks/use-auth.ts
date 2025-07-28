@@ -28,7 +28,7 @@ export function useAuth() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        scopes: 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/documents https://www.googleapis.com/auth/spreadsheets',
+        scopes: 'https://www.googleapis.com/auth/drive.file',
         redirectTo: `${window.location.origin}/auth/callback`,
       },
     });
