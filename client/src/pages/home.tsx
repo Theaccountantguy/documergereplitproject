@@ -60,6 +60,7 @@ export default function Home() {
     try {
       const result = await openDocumentPicker();
       if (result) {
+        console.log('Document selected:', result);
         setSelectedDocument(result);
         await loadDocumentContent(result.id);
         toast({
@@ -68,6 +69,7 @@ export default function Home() {
         });
       }
     } catch (error) {
+      console.error('Document selection error:', error);
       toast({
         title: "Error",
         description: "Failed to select document",
@@ -104,9 +106,12 @@ export default function Home() {
   const loadDocumentContent = async (documentId: string) => {
     setIsLoadingDocument(true);
     try {
+      console.log('Loading document content for:', documentId);
       const content = await googleAPIs.getDocumentContent(documentId);
+      console.log('Document content loaded:', content);
       setDocumentContent(content);
     } catch (error) {
+      console.error('Document loading error:', error);
       toast({
         title: "Error",
         description: "Failed to load document content",
@@ -119,11 +124,17 @@ export default function Home() {
 
   const loadSheetHeaders = async (spreadsheetId: string) => {
     try {
+      console.log('Loading sheet headers for:', spreadsheetId);
       const data = await googleAPIs.getSheetData(spreadsheetId, 'A1:Z1');
+      console.log('Sheet data received:', data);
       if (data.values && data.values[0]) {
+        console.log('Sheet headers:', data.values[0]);
         setSheetHeaders(data.values[0]);
+      } else {
+        console.log('No sheet values found in response');
       }
     } catch (error) {
+      console.error('Sheet loading error:', error);
       toast({
         title: "Error",
         description: "Failed to load sheet headers",

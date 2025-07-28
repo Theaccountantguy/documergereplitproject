@@ -94,6 +94,7 @@ export class GoogleAPIs {
     
     if (session?.provider_token) {
       this.accessToken = session.provider_token;
+      console.log('Using Supabase OAuth token for Google APIs');
       return this.accessToken;
     }
 
@@ -112,13 +113,14 @@ export class GoogleAPIs {
 
       const client = window.google.accounts.oauth2.initTokenClient({
         client_id: CLIENT_ID,
-        scope: 'https://www.googleapis.com/auth/drive.file',
+        scope: 'https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/documents.readonly https://www.googleapis.com/auth/spreadsheets.readonly',
         callback: (response: any) => {
           if (response.error) {
             reject(new Error(response.error));
             return;
           }
           this.accessToken = response.access_token;
+          console.log('Successfully authenticated with Google APIs - scope includes docs/sheets access');
           resolve(this.accessToken!);
         },
       });
@@ -202,20 +204,33 @@ export class GoogleAPIs {
       this.accessToken = await this.authenticateGoogle();
     }
 
+    console.log('Fetching document:', documentId);
+    console.log('Using access token:', this.accessToken?.substring(0, 20) + '...');
+
     const response = await fetch(
       `https://docs.googleapis.com/v1/documents/${documentId}`,
       {
         headers: {
           Authorization: `Bearer ${this.accessToken}`,
+          'Content-Type': 'application/json',
         },
       }
     );
 
+    console.log('Document API response status:', response.status);
+
     if (!response.ok) {
-      throw new Error('Failed to fetch document content');
+      const errorText = await response.text();
+      console.error('Document API error:', errorText);
+      throw new Error(`Failed to fetch document content: ${response.status} - ${errorText}`);
     }
 
-    return response.json();
+    const data = await response.json();
+    console.log('Document data received:', data);
+    
+    // Process Google Docs content structure
+    const processedData = this.processDocumentContent(data);
+    return processedData;
   }
 
   async getSheetData(spreadsheetId: string, range: string = 'A1:Z1000'): Promise<any> {
@@ -223,20 +238,104 @@ export class GoogleAPIs {
       this.accessToken = await this.authenticateGoogle();
     }
 
+    console.log('Fetching sheet:', spreadsheetId, 'range:', range);
+    console.log('Using access token:', this.accessToken?.substring(0, 20) + '...');
+
     const response = await fetch(
       `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}`,
       {
         headers: {
           Authorization: `Bearer ${this.accessToken}`,
+          'Content-Type': 'application/json',
         },
       }
     );
 
+    console.log('Sheets API response status:', response.status);
+
     if (!response.ok) {
-      throw new Error('Failed to fetch sheet data');
+      const errorText = await response.text();
+      console.error('Sheets API error:', errorText);
+      throw new Error(`Failed to fetch sheet data: ${response.status} - ${errorText}`);
     }
 
-    return response.json();
+    const data = await response.json();
+    console.log('Sheet data received:', data);
+    return data;
+  }
+
+  private processDocumentContent(data: any): any {
+    if (!data || !data.body || !data.body.content) {
+      return { ...data, content: '' };
+    }
+
+    let textContent = '';
+    
+    const extractText = (elements: any[]): string => {
+      let text = '';
+      
+      for (const element of elements) {
+        if (element.paragraph && element.paragraph.elements) {
+          for (const paraElement of element.paragraph.elements) {
+            if (paraElement.textRun && paraElement.textRun.content) {
+              text += paraElement.textRun.content;
+            }
+          }
+        } else if (element.table && element.table.tableRows) {
+          // Handle table content
+          for (const row of element.table.tableRows) {
+            if (row.tableCells) {
+              for (const cell of row.tableCells) {
+                if (cell.content) {
+                  text += extractText(cell.content) + ' ';
+                }
+              }
+              text += '\n';
+            }
+          }
+        }
+      }
+      
+      return text;
+    };
+
+    textContent = extractText(data.body.content);
+    
+    // Convert to HTML-like format for display
+    const htmlContent = textContent
+      .split('\n')
+      .filter(line => line.trim() !== '')
+      .map(line => `<p>${line.trim()}</p>`)
+      .join('');
+
+    return {
+      ...data,
+      content: htmlContent,
+      rawText: textContent.trim()
+    };
+  }
+
+  // Test if current token has sufficient permissions
+  async testAPIAccess(): Promise<boolean> {
+    if (!this.accessToken) return false;
+    
+    try {
+      // Test basic Drive access
+      const response = await fetch('https://www.googleapis.com/drive/v3/about?fields=user', {
+        headers: { Authorization: `Bearer ${this.accessToken}` }
+      });
+      
+      return response.ok;
+    } catch (error) {
+      console.error('API access test failed:', error);
+      return false;
+    }
+  }
+
+  // Force re-authentication with fresh tokens
+  async forceReauth(): Promise<string> {
+    this.accessToken = null;
+    return this.authenticateGoogle();
   }
 }
 
