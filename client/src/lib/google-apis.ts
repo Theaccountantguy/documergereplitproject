@@ -4,6 +4,7 @@ declare global {
   interface Window {
     gapi: any;
     google: any;
+    googleIdentityLoaded?: boolean;
   }
 }
 
@@ -57,22 +58,31 @@ export class GoogleAPIs {
   private async loadGoogleAPIs(): Promise<void> {
     return new Promise((resolve, reject) => {
       // Check if already loaded
-      if (window.gapi && window.google && window.google.picker) {
+      if (window.gapi && window.google && window.google.picker && window.googleIdentityLoaded) {
         resolve();
         return;
       }
 
-      // Load Google API script
-      const script = document.createElement('script');
-      script.src = 'https://apis.google.com/js/api.js';
-      script.onload = () => {
-        // Load picker module only (no auth2)
-        window.gapi.load('picker', () => {
-          resolve();
-        });
+      // Load Google Identity Services
+      const gisScript = document.createElement('script');
+      gisScript.src = 'https://accounts.google.com/gsi/client';
+      gisScript.onload = () => {
+        window.googleIdentityLoaded = true;
+        
+        // Load Google API script
+        const gapiScript = document.createElement('script');
+        gapiScript.src = 'https://apis.google.com/js/api.js';
+        gapiScript.onload = () => {
+          // Load picker module
+          window.gapi.load('picker', () => {
+            resolve();
+          });
+        };
+        gapiScript.onerror = () => reject(new Error('Failed to load Google APIs'));
+        document.head.appendChild(gapiScript);
       };
-      script.onerror = () => reject(new Error('Failed to load Google APIs'));
-      document.head.appendChild(script);
+      gisScript.onerror = () => reject(new Error('Failed to load Google Identity Services'));
+      document.head.appendChild(gisScript);
     });
   }
 
@@ -84,46 +94,92 @@ export class GoogleAPIs {
     
     console.log('Session data:', session); // Debug log
     
-    if (!session?.provider_token) {
-      throw new Error('No Google access token available. Please sign in again.');
+    if (session?.provider_token) {
+      this.accessToken = session.provider_token;
+      console.log('Using Supabase provider token');
+      return this.accessToken;
     }
 
-    this.accessToken = session.provider_token;
-    console.log('Access token obtained:', this.accessToken ? 'Yes' : 'No'); // Debug log
-    return this.accessToken;
+    // Fallback: Use Google Identity Services for direct authentication
+    console.log('No provider token, using GIS fallback');
+    return new Promise((resolve, reject) => {
+      if (!window.google?.accounts) {
+        reject(new Error('Google Identity Services not loaded'));
+        return;
+      }
+
+      const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+      if (!CLIENT_ID) {
+        reject(new Error('Google Client ID not configured'));
+        return;
+      }
+
+      const client = window.google.accounts.oauth2.initTokenClient({
+        client_id: CLIENT_ID,
+        scope: 'https://www.googleapis.com/auth/drive.file',
+        callback: (response: any) => {
+          if (response.error) {
+            reject(new Error(response.error));
+            return;
+          }
+          this.accessToken = response.access_token;
+          console.log('GIS access token obtained');
+          resolve(this.accessToken!);
+        },
+      });
+
+      client.requestAccessToken({ prompt: 'consent' });
+    });
   }
 
   async openPicker(mimeType: string): Promise<GooglePickerResult> {
-    if (!this.accessToken) {
-      this.accessToken = await this.authenticateGoogle();
-    }
-
-    return new Promise(async (resolve, reject) => {
-      const { data: { user } } = await supabase.auth.getUser();
+    try {
+      console.log('Opening picker for mimeType:', mimeType);
       
-      if (!user) {
-        reject(new Error('User not authenticated'));
-        return;
+      if (!this.accessToken) {
+        console.log('No access token, authenticating...');
+        this.accessToken = await this.authenticateGoogle();
       }
 
-      const API_KEY = import.meta.env.VITE_GOOGLE_API_KEY;
-      const APP_ID = import.meta.env.VITE_GOOGLE_APP_ID;
-      
-      if (!API_KEY || !APP_ID) {
-        reject(new Error('Google API key or App ID not configured'));
-        return;
-      }
+      return new Promise(async (resolve, reject) => {
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        if (!user) {
+          reject(new Error('User not authenticated'));
+          return;
+        }
 
-      // Ensure Google Picker is loaded
-      if (!window.google || !window.google.picker) {
-        await this.loadGoogleAPIs();
-      }
+        const API_KEY = import.meta.env.VITE_GOOGLE_API_KEY;
+        const APP_ID = import.meta.env.VITE_GOOGLE_APP_ID;
+        
+        console.log('API_KEY exists:', !!API_KEY);
+        console.log('APP_ID exists:', !!APP_ID);
+        console.log('Access token exists:', !!this.accessToken);
+        
+        if (!API_KEY || !APP_ID) {
+          reject(new Error('Google API key or App ID not configured'));
+          return;
+        }
 
-      if (!window.google || !window.google.picker) {
-        reject(new Error('Google Picker API failed to load'));
-        return;
-      }
+        // Ensure Google Picker is loaded
+        if (!window.google || !window.google.picker) {
+          console.log('Loading Google APIs...');
+          try {
+            await this.loadGoogleAPIs();
+          } catch (error) {
+            console.error('Failed to load Google APIs:', error);
+            reject(error);
+            return;
+          }
+        }
 
+        if (!window.google || !window.google.picker) {
+          reject(new Error('Google Picker API failed to load'));
+          return;
+        }
+
+        console.log('Creating picker...');
+        try {
           const picker = new window.google.picker.PickerBuilder()
             .enableFeature(window.google.picker.Feature.NAV_HIDDEN)
             .setAppId(APP_ID)
@@ -132,6 +188,7 @@ export class GoogleAPIs {
             .addView(new window.google.picker.DocsView(mimeType)
               .setIncludeFolders(true))
             .setCallback((data: any) => {
+              console.log('Picker callback:', data);
               if (data.action === window.google.picker.Action.PICKED) {
                 const doc = data.docs[0];
                 resolve({
@@ -147,8 +204,17 @@ export class GoogleAPIs {
             .setOrigin(window.location.protocol + '//' + window.location.host)
             .build();
 
+          console.log('Showing picker...');
           picker.setVisible(true);
-    });
+        } catch (error) {
+          console.error('Error creating picker:', error);
+          reject(error);
+        }
+      });
+    } catch (error) {
+      console.error('Error in openPicker:', error);
+      throw error;
+    }
   }
 
   async getDocumentContent(documentId: string): Promise<any> {

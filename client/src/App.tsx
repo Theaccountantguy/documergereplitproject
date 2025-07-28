@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import Home from "@/pages/home";
 import Auth from "@/pages/auth";
 import AuthCallback from "@/pages/auth-callback";
+import Debug from "@/pages/debug";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -14,6 +15,7 @@ function Router() {
       <Route path="/" component={Home} />
       <Route path="/auth" component={Auth} />
       <Route path="/auth/callback" component={AuthCallback} />
+      <Route path="/debug" component={Debug} />
       <Route component={NotFound} />
     </Switch>
   );
