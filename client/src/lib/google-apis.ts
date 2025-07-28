@@ -55,17 +55,23 @@ export class GoogleAPIs {
   }
 
   private async loadGoogleAPIs(): Promise<void> {
-    return new Promise((resolve) => {
-      if (window.gapi) {
+    return new Promise((resolve, reject) => {
+      // Check if already loaded
+      if (window.gapi && window.google && window.google.picker) {
         resolve();
         return;
       }
 
+      // Load Google API script
       const script = document.createElement('script');
       script.src = 'https://apis.google.com/js/api.js';
       script.onload = () => {
-        window.gapi.load('auth2:picker', resolve);
+        // Load both auth2 and picker
+        window.gapi.load('auth2:picker', () => {
+          resolve();
+        });
       };
+      script.onerror = () => reject(new Error('Failed to load Google APIs'));
       document.head.appendChild(script);
     });
   }
@@ -77,7 +83,7 @@ export class GoogleAPIs {
       const authInstance = window.gapi.auth2.getAuthInstance();
       
       authInstance.signIn({
-        scope: 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/documents https://www.googleapis.com/auth/spreadsheets'
+        scope: 'https://www.googleapis.com/auth/drive.file'
       }).then(async (googleUser: any) => {
         const authResponse = googleUser.getAuthResponse();
         this.accessToken = authResponse.access_token;
@@ -117,6 +123,16 @@ export class GoogleAPIs {
       
       if (!API_KEY) {
         reject(new Error('Google API key not configured'));
+        return;
+      }
+
+      // Ensure Google Picker is loaded
+      if (!window.google || !window.google.picker) {
+        await this.loadGoogleAPIs();
+      }
+
+      if (!window.google || !window.google.picker) {
+        reject(new Error('Google Picker API failed to load'));
         return;
       }
 
