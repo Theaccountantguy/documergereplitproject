@@ -38,18 +38,17 @@ export class GoogleAPIs {
     await this.loadGoogleAPIs();
     
     // Use environment variables for public credentials
-    const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
     const API_KEY = import.meta.env.VITE_GOOGLE_API_KEY;
 
-    if (!CLIENT_ID || !API_KEY) {
+    if (!API_KEY) {
       throw new Error('Google credentials not configured in environment');
     }
 
-    await window.gapi.load('auth2', async () => {
-      await window.gapi.auth2.init({
-        client_id: CLIENT_ID,
-      });
-    });
+    // Get access token from Supabase session (OAuth provider token)
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.provider_token) {
+      this.accessToken = session.provider_token;
+    }
 
     this.isInitialized = true;
   }
@@ -66,8 +65,8 @@ export class GoogleAPIs {
       const script = document.createElement('script');
       script.src = 'https://apis.google.com/js/api.js';
       script.onload = () => {
-        // Load both auth2 and picker
-        window.gapi.load('auth2:picker', () => {
+        // Load picker module only (no auth2)
+        window.gapi.load('picker', () => {
           resolve();
         });
       };
@@ -79,31 +78,15 @@ export class GoogleAPIs {
   async authenticateGoogle(): Promise<string> {
     await this.initialize();
 
-    return new Promise((resolve, reject) => {
-      const authInstance = window.gapi.auth2.getAuthInstance();
-      
-      authInstance.signIn({
-        scope: 'https://www.googleapis.com/auth/drive.file'
-      }).then(async (googleUser: any) => {
-        const authResponse = googleUser.getAuthResponse();
-        this.accessToken = authResponse.access_token;
+    // Get the access token from Supabase OAuth session
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    if (!session?.provider_token) {
+      throw new Error('No Google access token available. Please sign in again.');
+    }
 
-        // Store tokens in Supabase
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          await supabase
-            .from('users')
-            .update({
-              google_access_token: authResponse.access_token,
-              google_refresh_token: authResponse.refresh_token,
-              google_token_expires_at: new Date(authResponse.expires_at).toISOString(),
-            })
-            .eq('id', user.id);
-        }
-
-        resolve(authResponse.access_token);
-      }).catch(reject);
-    });
+    this.accessToken = session.provider_token;
+    return this.accessToken;
   }
 
   async openPicker(mimeType: string): Promise<GooglePickerResult> {
