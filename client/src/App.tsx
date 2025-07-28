@@ -7,6 +7,7 @@ import Home from "@/pages/home";
 import Auth from "@/pages/auth";
 import AuthCallback from "@/pages/auth-callback";
 import Debug from "@/pages/debug";
+import PickerTest from "@/pages/picker-test";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -16,6 +17,7 @@ function Router() {
       <Route path="/auth" component={Auth} />
       <Route path="/auth/callback" component={AuthCallback} />
       <Route path="/debug" component={Debug} />
+      <Route path="/picker-test" component={PickerTest} />
       <Route component={NotFound} />
     </Switch>
   );

@@ -133,63 +133,66 @@ export class GoogleAPIs {
     }
 
     return new Promise(async (resolve, reject) => {
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) {
-        reject(new Error('User not authenticated'));
-        return;
-      }
-
-      const API_KEY = import.meta.env.VITE_GOOGLE_API_KEY;
-      const APP_ID = import.meta.env.VITE_GOOGLE_APP_ID;
-      
-      if (!API_KEY || !APP_ID) {
-        reject(new Error('Google API key or App ID not configured'));
-        return;
-      }
-
-      // Ensure Google Picker is loaded
-      if (!window.google || !window.google.picker) {
-        try {
-          await this.loadGoogleAPIs();
-        } catch (error) {
-          reject(error);
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        if (!user) {
+          reject(new Error('User not authenticated'));
           return;
         }
-      }
 
-      if (!window.google || !window.google.picker) {
-        reject(new Error('Google Picker API failed to load'));
-        return;
-      }
+        const API_KEY = import.meta.env.VITE_GOOGLE_API_KEY;
+        
+        if (!API_KEY) {
+          reject(new Error('Google API key not configured'));
+          return;
+        }
 
-      try {
+        // Ensure Google Picker is loaded
+        if (!window.google || !window.google.picker) {
+          await this.loadGoogleAPIs();
+        }
+
+        if (!window.google || !window.google.picker) {
+          reject(new Error('Google Picker API failed to load'));
+          return;
+        }
+
+        // Use a simple DocsView without complex configuration
+        const view = new window.google.picker.DocsView()
+          .setIncludeFolders(true);
+        
+        // Set specific mime type if provided
+        if (mimeType) {
+          view.setMimeTypes(mimeType);
+        }
+
         const picker = new window.google.picker.PickerBuilder()
-          .enableFeature(window.google.picker.Feature.NAV_HIDDEN)
-          .setAppId(APP_ID)
           .setDeveloperKey(API_KEY)
           .setOAuthToken(this.accessToken)
-          .addView(new window.google.picker.DocsView(mimeType)
-            .setIncludeFolders(true))
+          .addView(view)
           .setCallback((data: any) => {
-            if (data.action === window.google.picker.Action.PICKED) {
-              const doc = data.docs[0];
-              resolve({
-                id: doc.id,
-                name: doc.name,
-                mimeType: doc.mimeType,
-                url: doc.url,
-              });
-            } else if (data.action === window.google.picker.Action.CANCEL) {
-              reject(new Error('User cancelled picker'));
+            try {
+              if (data.action === window.google.picker.Action.PICKED && data.docs && data.docs[0]) {
+                const doc = data.docs[0];
+                resolve({
+                  id: doc.id,
+                  name: doc.name,
+                  mimeType: doc.mimeType,
+                  url: doc.url,
+                });
+              } else if (data.action === window.google.picker.Action.CANCEL) {
+                reject(new Error('User cancelled picker'));
+              }
+            } catch (callbackError) {
+              reject(callbackError);
             }
           })
-          .setOrigin(window.location.protocol + '//' + window.location.host)
           .build();
 
         picker.setVisible(true);
-      } catch (error) {
-        reject(error);
+      } catch (mainError) {
+        reject(mainError);
       }
     });
   }
