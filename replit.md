@@ -99,9 +99,16 @@ Preferred communication style: Simple, everyday language.
 - **Edge Functions**: Supabase deployment for mail merge processing
 
 ### Configuration Requirements
-- Google Cloud Console project with enabled APIs
+- Google Cloud Console project with enabled APIs (Drive, Docs, Sheets, Picker)
 - Supabase project with Google OAuth provider configured
-- Environment variables for all API keys and database connections
+- Environment variables: DATABASE_URL, VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY
+- Google API credentials: VITE_GOOGLE_CLIENT_ID, VITE_GOOGLE_API_KEY, VITE_GOOGLE_APP_ID
 - PostgreSQL database with proper connection string
+
+### Recent Changes (January 28, 2025)
+- **Simplified Authentication Flow**: Removed manual credential entry requirements
+- **Pre-configured Google API Integration**: Uses environment variables for all Google credentials
+- **Streamlined User Experience**: Users only need to authenticate via Google OAuth
+- **Direct Google Picker Access**: No additional setup required for file selection
 
 The application is designed to be deployed on platforms that support Node.js with the ability to serve static files and handle environment variables securely.

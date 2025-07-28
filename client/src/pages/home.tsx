@@ -7,11 +7,9 @@ import { DocumentPreview } from '@/components/document-preview';
 import { SettingsPanel } from '@/components/settings-panel';
 import { OAuthModal } from '@/components/oauth-modal';
 import { GooglePicker } from '@/components/google-picker';
-import { CredentialsSetup } from '@/components/credentials-setup';
 import { Button } from '@/components/ui/button';
-import { LogOut, Settings } from 'lucide-react';
+import { LogOut } from 'lucide-react';
 import { googleAPIs } from '@/lib/google-apis';
-import { apiRequest } from '@/lib/queryClient';
 
 export default function Home() {
   const { user, loading, signOut } = useAuth();
@@ -25,7 +23,7 @@ export default function Home() {
   const [documentContent, setDocumentContent] = useState<any>(null);
   const [showOAuthModal, setShowOAuthModal] = useState(false);
   const [showPickerModal, setShowPickerModal] = useState(false);
-  const [showCredentialsModal, setShowCredentialsModal] = useState(false);
+
   const [pickerTitle, setPickerTitle] = useState('');
   const [isCredentialsActive, setIsCredentialsActive] = useState(false);
   const [mergeProgress, setMergeProgress] = useState(0);
@@ -47,22 +45,15 @@ export default function Home() {
   const checkCredentials = async () => {
     if (!user) return;
     
-    try {
-      const response = await fetch(`/api/users/${user.id}/credentials`);
-      if (response.ok) {
-        const credentials = await response.json();
-        setIsCredentialsActive(!!credentials);
-      } else {
-        setIsCredentialsActive(false);
-      }
-    } catch (error) {
-      setIsCredentialsActive(false);
-    }
+    // Since credentials are pre-configured via environment variables,
+    // we just need to check if the environment variables are present
+    const hasCredentials = !!(import.meta.env.VITE_GOOGLE_CLIENT_ID && import.meta.env.VITE_GOOGLE_API_KEY);
+    setIsCredentialsActive(hasCredentials);
   };
 
   const handleSelectDocument = async () => {
     if (!isCredentialsActive) {
-      setShowCredentialsModal(true);
+      setShowOAuthModal(true);
       return;
     }
 
@@ -87,7 +78,7 @@ export default function Home() {
 
   const handleSelectSheet = async () => {
     if (!isCredentialsActive) {
-      setShowCredentialsModal(true);
+      setShowOAuthModal(true);
       return;
     }
 
@@ -248,15 +239,6 @@ export default function Home() {
           
           <div className="flex items-center space-x-4">
             <div className="flex items-center space-x-3">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowCredentialsModal(true)}
-                className="text-gray-400 hover:text-gray-600"
-                title="Configure Google API Credentials"
-              >
-                <Settings className="w-4 h-4" />
-              </Button>
               <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center">
                 <span className="text-white text-sm font-medium">
                   {user.email?.charAt(0).toUpperCase()}
@@ -299,15 +281,6 @@ export default function Home() {
       </div>
 
       {/* Modals */}
-      <CredentialsSetup
-        isOpen={showCredentialsModal}
-        onClose={() => setShowCredentialsModal(false)}
-        onSuccess={() => {
-          checkCredentials();
-          setIsCredentialsActive(true);
-        }}
-      />
-
       <OAuthModal
         isOpen={showOAuthModal}
         onClose={() => setShowOAuthModal(false)}

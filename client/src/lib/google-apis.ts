@@ -37,20 +37,17 @@ export class GoogleAPIs {
     // Load Google APIs
     await this.loadGoogleAPIs();
     
-    // Get stored credentials
-    const { data: credentials } = await supabase
-      .from('google_credentials')
-      .select('*')
-      .eq('user_id', user.id)
-      .single();
+    // Use environment variables for public credentials
+    const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+    const API_KEY = import.meta.env.VITE_GOOGLE_API_KEY;
 
-    if (!credentials) {
-      throw new Error('Google credentials not configured');
+    if (!CLIENT_ID || !API_KEY) {
+      throw new Error('Google credentials not configured in environment');
     }
 
     await window.gapi.load('auth2', async () => {
       await window.gapi.auth2.init({
-        client_id: credentials.client_id,
+        client_id: CLIENT_ID,
       });
     });
 
@@ -116,20 +113,16 @@ export class GoogleAPIs {
         return;
       }
 
-      const { data: credentials } = await supabase
-        .from('google_credentials')
-        .select('api_key')
-        .eq('user_id', user.id)
-        .single();
-        
-      if (!credentials) {
-        reject(new Error('API key not found'));
+      const API_KEY = import.meta.env.VITE_GOOGLE_API_KEY;
+      
+      if (!API_KEY) {
+        reject(new Error('Google API key not configured'));
         return;
       }
 
           const picker = new window.google.picker.PickerBuilder()
             .enableFeature(window.google.picker.Feature.NAV_HIDDEN)
-            .setAppId(credentials.api_key)
+            .setDeveloperKey(API_KEY)
             .setOAuthToken(this.accessToken)
             .addView(new window.google.picker.DocsView(mimeType)
               .setIncludeFolders(true))
