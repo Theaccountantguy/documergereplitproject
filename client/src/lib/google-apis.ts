@@ -92,16 +92,12 @@ export class GoogleAPIs {
     // Get the access token from Supabase OAuth session
     const { data: { session } } = await supabase.auth.getSession();
     
-    console.log('Session data:', session); // Debug log
-    
     if (session?.provider_token) {
       this.accessToken = session.provider_token;
-      console.log('Using Supabase provider token');
       return this.accessToken;
     }
 
     // Fallback: Use Google Identity Services for direct authentication
-    console.log('No provider token, using GIS fallback');
     return new Promise((resolve, reject) => {
       if (!window.google?.accounts) {
         reject(new Error('Google Identity Services not loaded'));
@@ -123,7 +119,6 @@ export class GoogleAPIs {
             return;
           }
           this.accessToken = response.access_token;
-          console.log('GIS access token obtained');
           resolve(this.accessToken!);
         },
       });
@@ -133,88 +128,70 @@ export class GoogleAPIs {
   }
 
   async openPicker(mimeType: string): Promise<GooglePickerResult> {
-    try {
-      console.log('Opening picker for mimeType:', mimeType);
+    if (!this.accessToken) {
+      this.accessToken = await this.authenticateGoogle();
+    }
+
+    return new Promise(async (resolve, reject) => {
+      const { data: { user } } = await supabase.auth.getUser();
       
-      if (!this.accessToken) {
-        console.log('No access token, authenticating...');
-        this.accessToken = await this.authenticateGoogle();
+      if (!user) {
+        reject(new Error('User not authenticated'));
+        return;
       }
 
-      return new Promise(async (resolve, reject) => {
-        const { data: { user } } = await supabase.auth.getUser();
-        
-        if (!user) {
-          reject(new Error('User not authenticated'));
-          return;
-        }
+      const API_KEY = import.meta.env.VITE_GOOGLE_API_KEY;
+      const APP_ID = import.meta.env.VITE_GOOGLE_APP_ID;
+      
+      if (!API_KEY || !APP_ID) {
+        reject(new Error('Google API key or App ID not configured'));
+        return;
+      }
 
-        const API_KEY = import.meta.env.VITE_GOOGLE_API_KEY;
-        const APP_ID = import.meta.env.VITE_GOOGLE_APP_ID;
-        
-        console.log('API_KEY exists:', !!API_KEY);
-        console.log('APP_ID exists:', !!APP_ID);
-        console.log('Access token exists:', !!this.accessToken);
-        
-        if (!API_KEY || !APP_ID) {
-          reject(new Error('Google API key or App ID not configured'));
-          return;
-        }
-
-        // Ensure Google Picker is loaded
-        if (!window.google || !window.google.picker) {
-          console.log('Loading Google APIs...');
-          try {
-            await this.loadGoogleAPIs();
-          } catch (error) {
-            console.error('Failed to load Google APIs:', error);
-            reject(error);
-            return;
-          }
-        }
-
-        if (!window.google || !window.google.picker) {
-          reject(new Error('Google Picker API failed to load'));
-          return;
-        }
-
-        console.log('Creating picker...');
+      // Ensure Google Picker is loaded
+      if (!window.google || !window.google.picker) {
         try {
-          const picker = new window.google.picker.PickerBuilder()
-            .enableFeature(window.google.picker.Feature.NAV_HIDDEN)
-            .setAppId(APP_ID)
-            .setDeveloperKey(API_KEY)
-            .setOAuthToken(this.accessToken)
-            .addView(new window.google.picker.DocsView(mimeType)
-              .setIncludeFolders(true))
-            .setCallback((data: any) => {
-              console.log('Picker callback:', data);
-              if (data.action === window.google.picker.Action.PICKED) {
-                const doc = data.docs[0];
-                resolve({
-                  id: doc.id,
-                  name: doc.name,
-                  mimeType: doc.mimeType,
-                  url: doc.url,
-                });
-              } else if (data.action === window.google.picker.Action.CANCEL) {
-                reject(new Error('User cancelled picker'));
-              }
-            })
-            .setOrigin(window.location.protocol + '//' + window.location.host)
-            .build();
-
-          console.log('Showing picker...');
-          picker.setVisible(true);
+          await this.loadGoogleAPIs();
         } catch (error) {
-          console.error('Error creating picker:', error);
           reject(error);
+          return;
         }
-      });
-    } catch (error) {
-      console.error('Error in openPicker:', error);
-      throw error;
-    }
+      }
+
+      if (!window.google || !window.google.picker) {
+        reject(new Error('Google Picker API failed to load'));
+        return;
+      }
+
+      try {
+        const picker = new window.google.picker.PickerBuilder()
+          .enableFeature(window.google.picker.Feature.NAV_HIDDEN)
+          .setAppId(APP_ID)
+          .setDeveloperKey(API_KEY)
+          .setOAuthToken(this.accessToken)
+          .addView(new window.google.picker.DocsView(mimeType)
+            .setIncludeFolders(true))
+          .setCallback((data: any) => {
+            if (data.action === window.google.picker.Action.PICKED) {
+              const doc = data.docs[0];
+              resolve({
+                id: doc.id,
+                name: doc.name,
+                mimeType: doc.mimeType,
+                url: doc.url,
+              });
+            } else if (data.action === window.google.picker.Action.CANCEL) {
+              reject(new Error('User cancelled picker'));
+            }
+          })
+          .setOrigin(window.location.protocol + '//' + window.location.host)
+          .build();
+
+        picker.setVisible(true);
+      } catch (error) {
+        reject(error);
+      }
+    });
   }
 
   async getDocumentContent(documentId: string): Promise<any> {
