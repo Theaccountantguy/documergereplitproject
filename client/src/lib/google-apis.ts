@@ -39,8 +39,9 @@ export class GoogleAPIs {
     
     // Use environment variables for public credentials
     const API_KEY = import.meta.env.VITE_GOOGLE_API_KEY;
+    const APP_ID = import.meta.env.VITE_GOOGLE_APP_ID;
 
-    if (!API_KEY) {
+    if (!API_KEY || !APP_ID) {
       throw new Error('Google credentials not configured in environment');
     }
 
@@ -81,11 +82,14 @@ export class GoogleAPIs {
     // Get the access token from Supabase OAuth session
     const { data: { session } } = await supabase.auth.getSession();
     
+    console.log('Session data:', session); // Debug log
+    
     if (!session?.provider_token) {
       throw new Error('No Google access token available. Please sign in again.');
     }
 
     this.accessToken = session.provider_token;
+    console.log('Access token obtained:', this.accessToken ? 'Yes' : 'No'); // Debug log
     return this.accessToken;
   }
 
@@ -103,9 +107,10 @@ export class GoogleAPIs {
       }
 
       const API_KEY = import.meta.env.VITE_GOOGLE_API_KEY;
+      const APP_ID = import.meta.env.VITE_GOOGLE_APP_ID;
       
-      if (!API_KEY) {
-        reject(new Error('Google API key not configured'));
+      if (!API_KEY || !APP_ID) {
+        reject(new Error('Google API key or App ID not configured'));
         return;
       }
 
@@ -121,6 +126,7 @@ export class GoogleAPIs {
 
           const picker = new window.google.picker.PickerBuilder()
             .enableFeature(window.google.picker.Feature.NAV_HIDDEN)
+            .setAppId(APP_ID)
             .setDeveloperKey(API_KEY)
             .setOAuthToken(this.accessToken)
             .addView(new window.google.picker.DocsView(mimeType)
@@ -134,8 +140,11 @@ export class GoogleAPIs {
                   mimeType: doc.mimeType,
                   url: doc.url,
                 });
+              } else if (data.action === window.google.picker.Action.CANCEL) {
+                reject(new Error('User cancelled picker'));
               }
             })
+            .setOrigin(window.location.protocol + '//' + window.location.host)
             .build();
 
           picker.setVisible(true);
